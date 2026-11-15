@@ -89,3 +89,34 @@ def test_standalone_profile_dialog_reuses_run_settings_page():
     assert dialog.delete_button is dialog.page.delete_button
     assert dialog.findChildren(RunConfigurationsPage) == [dialog.page]
     dialog.close()
+
+
+def test_profiles_dialog_handles_yaml_error_on_save(monkeypatch):
+    from ruamel.yaml.error import YAMLError
+    from PyQt6.QtWidgets import QDialog, QMessageBox
+
+    class FailingStore(_ReadOnlyStore):
+        def drafts(self):
+            return {
+                "local": ProfileDraft(
+                    "local", {"executor": "local"}, read_only=False
+                )
+            }
+
+        def resolved_name(self, name):
+            return "local" if name is None else name
+
+        def save(self, drafts, *, default_profile=None):
+            raise YAMLError("invalid YAML document")
+
+    messages = []
+    monkeypatch.setattr(
+        QMessageBox, "critical",
+        lambda _parent, title, message: messages.append((title, message)),
+    )
+    dialog = profiles_dialogs.ProfilesDialog(store=FailingStore())
+    dialog.form.executable_dir.setText("/new/path")
+    dialog.accept()
+    assert dialog.result() == QDialog.DialogCode.Rejected
+    assert messages == [("Cannot Save Profiles", "invalid YAML document")]
+    dialog.close()

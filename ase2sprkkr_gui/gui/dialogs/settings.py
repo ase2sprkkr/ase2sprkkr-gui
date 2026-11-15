@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ruamel.yaml.error import YAMLError
+
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -115,12 +117,12 @@ class SettingsDialog(QDialog):
             return
         try:
             self.run_configurations_page.save()
-        except (OSError, TypeError, ValueError) as exc:
+        except (OSError, TypeError, ValueError, YAMLError) as exc:
             QMessageBox.critical(self, "Cannot Save Run Configurations", str(exc))
             return
         try:
             self.ase2sprkkr_page.save()
-        except (OSError, TypeError, ValueError) as exc:
+        except (OSError, TypeError, ValueError, YAMLError) as exc:
             QMessageBox.critical(self, "Cannot save ase2sprkkr configuration", str(exc))
             return
         super().accept()

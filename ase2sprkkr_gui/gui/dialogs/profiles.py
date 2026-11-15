@@ -10,6 +10,8 @@ from PyQt6.QtCore import Qt, QRegularExpression
 from PyQt6.QtGui import QRegularExpressionValidator
 from kkrunner.projects import ProjectRepository, ProjectRepositoryError
 
+from ruamel.yaml.error import YAMLError
+
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -75,7 +77,7 @@ class ProfilesDialog(QDialog):
     def accept(self) -> None:  # type: ignore[override]
         try:
             self.page.save()
-        except (OSError, TypeError, ValueError) as exc:
+        except (OSError, TypeError, ValueError, YAMLError) as exc:
             QMessageBox.critical(self, "Cannot Save Profiles", str(exc))
             return
         super().accept()

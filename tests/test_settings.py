@@ -256,3 +256,30 @@ def test_bundled_settings_icon_is_renderable():
     assert not icon.isNull()
     assert not icon.pixmap(24, 24).isNull()
     assert not settings_icon().pixmap(24, 24).isNull()
+
+
+def test_yaml_parse_error_on_profile_save_does_not_close_settings(tmp_path, monkeypatch):
+    from ruamel.yaml.error import YAMLError
+    from PyQt6.QtWidgets import QDialog, QMessageBox
+    from ase2sprkkr_gui.gui.dialogs.settings import SettingsDialog
+
+    class BrokenYamlStore(_FakeProfileStore):
+        def save(self, drafts, *, default_profile=None):
+            raise YAMLError("invalid YAML document")
+
+    messages = []
+    monkeypatch.setattr(
+        QMessageBox, "critical",
+        lambda _parent, title, message: messages.append((title, message)),
+    )
+    dialog = SettingsDialog(
+        ApplicationSettings(tmp_path / "settings.json"),
+        profile_store=BrokenYamlStore(),
+    )
+    dialog.run_configurations_page.form.executable_dir.setText("/new/path")
+    dialog.accept()
+    assert dialog.result() == QDialog.DialogCode.Rejected
+    assert messages == [(
+        "Cannot Save Run Configurations", "invalid YAML document"
+    )]
+    dialog.close()

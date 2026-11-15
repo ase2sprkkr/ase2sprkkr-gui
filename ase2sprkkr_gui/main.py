@@ -421,8 +421,37 @@ class GuiApplication(QObject):
         window.activateWindow()
 
 
+def _warn_unreadable_user_yaml() -> None:
+    """Report a corrupted user configuration after Qt has started.
+
+    The library already warned and skipped the malformed YAML on import.
+    Rechecking the document here avoids a launcher-specific import path and
+    ensures that users starting the GUI without a terminal see the problem.
+    """
+    from ruamel.yaml.error import YAMLError
+    from ase2sprkkr.configuration import user_preferences_file
+    from ase2sprkkr.configuration_yaml import load_yaml_document
+
+    path = Path(user_preferences_file())
+    if not path.is_file():
+        return
+    try:
+        load_yaml_document(path)
+    except (YAMLError, ValueError) as exc:
+        QMessageBox.warning(
+            None,
+            "Invalid ASE2SPRKKR Configuration",
+            f"Cannot parse the user configuration file:\n{path}\n\n{exc}\n\n"
+            "The file was not changed. ASE2SPRKKR will use its defaults "
+            "(and any loaded legacy Python settings) until the YAML is fixed. "
+            "Please correct the file before saving execution profiles or "
+            "ASE2SPRKKR settings.",
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     app = QApplication(sys.argv if argv is None else [sys.argv[0], *argv])
+    _warn_unreadable_user_yaml()
     gui = GuiApplication(parent=app)
     gui.show_workflow_window()
     interrupt = ConsoleInterrupt(gui.request_exit, parent=app)
