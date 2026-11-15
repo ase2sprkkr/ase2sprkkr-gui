@@ -19,7 +19,7 @@ def record(state=RunState.RUNNING, *, phase=None, code=None, backend_id="backend
         execution=ExecutionMetadata(
             SshTransport(host="cluster.example"),
             WorkingDirectory("/tmp/project", "/scratch/run"),
-            backend_id=backend_id, backend=BackendConfig("process"),
+            backend_id=backend_id, backend=BackendConfig("kkrunner"),
         ),
     )
 

@@ -37,7 +37,7 @@ def test_profile_form_explains_selected_run_target():
 
     expected = {
         "local": "Run directly on this computer.",
-        "ssh": "Run on another computer over SSH as a reattachable process.",
+        "ssh": "Run on another computer over SSH with the KKRunner supervisor.",
         "psij": (
             "Submit the calculation to a workload manager accessible from this computer."
         ),
@@ -309,7 +309,7 @@ def test_supervision_selection_roundtrips_and_reaches_profile_backend():
         ("local", True), ("local", False),
         ("ssh", True), ("ssh", False),
     ):
-        selected = "process" if supervised else "direct"
+        selected = "kkrunner" if supervised else "direct"
         values = {"executor": executor, "backend": selected, "host": "example.org"}
         form.load(ProfileDraft("run", values))
         assert form.supervised.isChecked() is supervised
@@ -321,7 +321,7 @@ def test_supervision_selection_roundtrips_and_reaches_profile_backend():
 
     form.load(ProfileDraft("default", {"executor": "local"}))
     form.supervised.setChecked(True)
-    assert form.values()["backend"] == "process"
+    assert form.values()["backend"] == "kkrunner"
     form.kind.setCurrentIndex(form.kind.findData("ssh"))
     assert form.supervised.isChecked()
     form.supervised.setChecked(False)
@@ -342,44 +342,41 @@ def test_profile_without_explicit_backend_uses_transport_specific_default():
     form.close()
 
 
-def test_explicit_process_backend_is_not_misidentified_as_ssh_psij():
+def test_explicit_kkrunner_backend_is_not_misidentified_as_ssh_psij():
     from ase2sprkkr_gui.gui.application.execution_profiles import draft_kind
 
     _application = _app()
     form = ProfileForm()
     values = {
-        "executor": "ssh", "host": "example.org", "backend": "process",
+        "executor": "ssh", "host": "example.org", "backend": "kkrunner",
         "psij_backend": "slurm",
     }
     assert draft_kind(values) == "ssh"
     form.load(ProfileDraft("ssh", values))
     assert form.kind.currentData() == "ssh"
-    assert form.values()["backend"] == "process"
+    assert form.values()["backend"] == "kkrunner"
     assert "psij_backend" not in form.values()
     form.close()
 
 
 
-def test_reattachable_process_text_explains_capability_and_requirements():
+def test_kkrunner_supervisor_text_distinguishes_execution_from_persistence():
     _application = _app()
     form = ProfileForm()
-    assert form.supervised.text() == "Reattachable process"
+    assert form.supervised.text() == "KKRunner supervisor"
     tooltip = form.supervised.toolTip()
-    assert "reattach later" in tooltip
+    assert "reconnecting" in tooltip
     assert "SSH connection" in tooltip
-    assert "ASE2SPRKKR or at least KKRunner" in tooltip
-    assert "machine" in tooltip
-    assert "supervised process backend" in tooltip
-    assert tooltip.count("\n") == 5
-    assert "output.\n\nASE2SPRKKR" in tooltip
+    assert "KKRunner must be installed" in tooltip
+    assert "project is a separate setting" in tooltip
 
     form.supervised.setChecked(True)
     assert form.run_target_description.text() == (
-        "Run on this computer as a reattachable process."
+        "Run on this computer with the KKRunner supervisor."
     )
     form.kind.setCurrentIndex(form.kind.findData("ssh"))
     assert form.run_target_description.text() == (
-        "Run on another computer over SSH as a reattachable process."
+        "Run on another computer over SSH with the KKRunner supervisor."
     )
     form.supervised.setChecked(False)
     assert form.run_target_description.text() == (

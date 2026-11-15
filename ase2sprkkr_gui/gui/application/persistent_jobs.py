@@ -61,7 +61,7 @@ def _execution_target(record: Any) -> str:
         executor_name = dict(backend.options).get("executor_name", "slurm")
         return (f"PSI/J · {executor_name}" if transport.is_local
                 else f"{label} · PSI/J {executor_name}")
-    if backend.name == "process":
+    if backend.name == "kkrunner":
         return f"{label} · supervised"
     return label
 

@@ -15,7 +15,7 @@ def _record(state=RunState.POSTPROCESSING):
         finished_at=None, metadata={"ase2sprkkr": {"task": "DOS"}},
         return_code=0, message=None, failure_phase=None,
         files=FileManifest(),
-        execution=ExecutionMetadata(LocalTransport(), WorkingDirectory("/tmp/calc"), "pid-42", backend=BackendConfig("process")),
+        execution=ExecutionMetadata(LocalTransport(), WorkingDirectory("/tmp/calc"), "pid-42", backend=BackendConfig("kkrunner")),
     )
 
 class Store:

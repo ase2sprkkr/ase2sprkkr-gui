@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The execution profile editor now selects `backend: kkrunner` for supervised
+  execution; the `process` backend name is no longer supported.
+- Renamed the supervision control to **KKRunner supervisor**, separating
+  backend reattachment capabilities from saving persistent project records.
+- Requires ASE2SPRKKR 4.0.0 beta5 and KKRunner 0.2.0 beta3.
+
 ### Fixes
 
 - Fixed application shutdown after exit confirmation: the workflow window now

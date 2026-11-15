@@ -185,12 +185,13 @@ class ProfileForm(QWidget):
         self.run_target_description.setWordWrap(True)
         self.run_target_description.setStyleSheet("color: palette(mid);")
         run_form.addRow(self.run_target_description)
-        self.supervised = QCheckBox("Reattachable process", run_box)
+        self.supervised = QCheckBox("KKRunner supervisor", run_box)
         self.supervised.setToolTip(
-            "Keep the calculation running if the GUI closes or an SSH connection is lost.\n"
-            "You can reattach later to monitor its status and output.\n\n"
-            "ASE2SPRKKR or at least KKRunner must be installed on the target machine.\n\n"
-            "(Uses KKRunner's supervised process backend when enabled.)"
+            "Run with a KKRunner supervisor that retains the execution result\n"
+            "even if the GUI or SSH connection closes. It supports reconnecting\n"
+            "to the job and recovering submissions.\n\n"
+            "KKRunner must be installed on the execution host.\n"
+            "Saving the calculation in a project is a separate setting."
         )
         self.supervised.toggled.connect(self._supervision_changed)
         run_form.addRow(self.supervised)
@@ -289,10 +290,10 @@ class ProfileForm(QWidget):
         kind = str(self.kind.currentData())
         description = RUN_TARGET_DESCRIPTIONS.get(kind, "")
         if kind == "local" and self.supervised.isChecked():
-            description = "Run on this computer as a reattachable process."
+            description = "Run on this computer with the KKRunner supervisor."
         elif kind == "ssh":
             description = (
-                "Run on another computer over SSH as a reattachable process."
+                "Run on another computer over SSH with the KKRunner supervisor."
                 if self.supervised.isChecked()
                 else "Run directly on another computer connected over SSH."
             )
@@ -331,10 +332,10 @@ class ProfileForm(QWidget):
         values = draft.values
         kind = draft_kind(values)
         self._loaded_backend = values.get("backend")
-        self._backend_explicit = self._loaded_backend in {"direct", "process"}
+        self._backend_explicit = self._loaded_backend in {"direct", "kkrunner"}
         self.kind.setCurrentIndex(max(self.kind.findData(kind), 0))
         self._set_supervised(
-            self._loaded_backend == "process"
+            self._loaded_backend == "kkrunner"
             if self._backend_explicit else kind == "ssh"
         )
         self._last_kind = kind
@@ -364,8 +365,8 @@ class ProfileForm(QWidget):
             "mpi_warning": self.mpi_warning.isChecked(),
         }
         if kind in {"local", "ssh"}:
-            backend = "process" if self.supervised.isChecked() else "direct"
-            default_backend = "process" if kind == "ssh" else "direct"
+            backend = "kkrunner" if self.supervised.isChecked() else "direct"
+            default_backend = "kkrunner" if kind == "ssh" else "direct"
             if self._backend_explicit or backend != default_backend:
                 values["backend"] = backend
         elif kind == "ssh-psij" or (kind == "psij" and self._loaded_backend == "psij"):

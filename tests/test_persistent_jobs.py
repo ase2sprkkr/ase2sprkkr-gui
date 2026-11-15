@@ -140,7 +140,7 @@ def test_explicit_postprocessing_retry_delegates_to_application(monkeypatch):
 
 def test_unknown_supervised_ssh_run_can_be_reattached_after_restart():
     item = record(RunState.UNKNOWN)
-    item.execution = replace(item.execution, backend=BackendConfig("process"))
+    item.execution = replace(item.execution, backend=BackendConfig("kkrunner"))
     restored = PersistentJob.from_run_record(item)
     assert restored.attachable
     assert restored.reattach_unavailable_reason is None

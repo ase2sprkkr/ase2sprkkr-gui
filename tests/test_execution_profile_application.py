@@ -163,13 +163,13 @@ def test_profile_editor_owns_creation_and_deletion_policy():
 def test_profile_description_distinguishes_direct_and_supervised(monkeypatch):
     from ase2sprkkr.sprkkr.profile import SPRKKRProfile
 
-    for executor, backend in (("local", "direct"), ("ssh", "process")):
+    for executor, backend in (("local", "direct"), ("ssh", "kkrunner")):
         profile = SPRKKRProfile(executor=executor, backend=backend, host="example.org")
         monkeypatch.setattr(
             profile_application,
             "resolve_sprkkr_profile",
             lambda name, *, configuration=None: profile,
         )
-        assert backend.replace("process", "supervised") in (
+        assert backend.replace("kkrunner", "supervised") in (
             profile_application.profile_description("run")
         )

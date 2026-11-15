@@ -28,7 +28,7 @@ def test_project_manager_uses_explicit_repository_and_shared_store(tmp_path):
             "input_definition": "SCF",
         }},
         transport=LocalTransport(),
-        backend=BackendConfig("process"),
+        backend=BackendConfig("kkrunner"),
     )
     assert record.project_id == project.id
     job = PersistentJob.from_run_record(record)

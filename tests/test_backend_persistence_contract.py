@@ -39,7 +39,7 @@ def test_persistent_task_identity_round_trip_drives_recompute_editor(
     run = manager.new_record(
         directory=tmp_path,
         transport=LocalTransport(),
-        backend=BackendConfig("process"),
+        backend=BackendConfig("kkrunner"),
         metadata={"ase2sprkkr": {
             "task": "SPLEED",
             "input_definition": "ARPES",

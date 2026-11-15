@@ -77,7 +77,7 @@ def profile_description(name: str | None, *, configuration: Any | None = None) -
         where = f"{profile.executor} execution"
 
     if kind in {"local", "ssh"}:
-        mode = "supervised" if profile.backend_config.name == "process" else "direct"
+        mode = "supervised" if profile.backend_config.name == "kkrunner" else "direct"
         where = f"{where} · {mode}"
 
     mpi = profile.mpi
