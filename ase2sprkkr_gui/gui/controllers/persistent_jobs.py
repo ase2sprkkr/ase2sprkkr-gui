@@ -165,6 +165,7 @@ class PersistentJobsController(QObject):
             self._source.jobs(),
             available=self._source.available,
             unavailable_reason=self._source.unavailable_reason,
+            history_warning=getattr(self._source, "history_warning", None),
             supports_refresh=self._source.supports_refresh,
             supports_results=self._source.supports_results,
             supports_attach=self._source.supports_attach,

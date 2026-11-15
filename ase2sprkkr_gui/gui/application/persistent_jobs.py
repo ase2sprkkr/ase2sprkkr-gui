@@ -12,6 +12,8 @@ from typing import Any, Callable
 from kkrunner.backends.contracts import BackendCapability
 from kkrunner.files.versions import file_digest
 from kkrunner.projects import ProjectRepository, ProjectRunManager
+from kkrunner.runs.manager import RunManager
+from kkrunner.runs.records import CorruptRunRecord, RunStore
 from ase2sprkkr.outputs.project_results import (
     attach_project_run,
     load_project_result,
@@ -250,6 +252,8 @@ class PersistentJobSource:
         self._manager = manager
         self._projects = projects
         self.unavailable_reason: str | None = None
+        self.history_warning: str | None = None
+        self._unreadable_records: dict[Path, str] = {}
         self._lock = RLock()
         self._jobs: dict[str, PersistentJob] = {}
         self._listeners: set[JobChangedListener] = set()
@@ -352,11 +356,33 @@ class PersistentJobSource:
         with self._lock:
             return self._jobs.get(str(job_id))
 
+    def _report_unreadable_record(self, error: CorruptRunRecord) -> None:
+        """Keep a damaged history entry visible as a warning, not as a run."""
+        logger.warning("Skipping unreadable persistent run: %s", error)
+        self._unreadable_records[error.path] = str(error)
+        count = len(self._unreadable_records)
+        noun = "record" if count == 1 else "records"
+        verb = "is" if count == 1 else "are"
+        self.history_warning = (
+            f"{count} stored run {noun} could not be read and {verb} not shown "
+            "in the history. The original files were not changed. "
+            "See the application log for their paths and errors."
+        )
+
+    def _history_records(self):
+        """Browse valid history while keeping strict reads for run operations."""
+        self._unreadable_records.clear()
+        self.history_warning = None
+        store = self._manager.store
+        if isinstance(store, RunStore):
+            return store.runs(on_error=self._report_unreadable_record)
+        return store.runs()
+
     def reload(self, *, notify: bool = True) -> tuple[PersistentJob, ...]:
         """Reload authoritative metadata without starting another runner."""
         if self._manager is None:
             return ()
-        records = self._manager.store.runs()
+        records = self._history_records()
         loaded = {
             str(record.id): PersistentJob.from_run_record(record)
             for record in records
@@ -389,7 +415,9 @@ class PersistentJobSource:
             return self.job(job_id)
         try:
             record = self._manager.store.get(job_id)
-        except (FileNotFoundError, KeyError):
+        except (FileNotFoundError, KeyError, CorruptRunRecord) as exc:
+            if isinstance(exc, CorruptRunRecord):
+                self._report_unreadable_record(exc)
             with self._lock:
                 existed = self._jobs.pop(job_id, None) is not None
             if existed:
@@ -415,11 +443,14 @@ class PersistentJobSource:
             return ()
         recover_submitting = getattr(self._manager, "recover_submitting", None)
         if callable(recover_submitting):
-            for record in self._manager.store.runs():
+            for record in self._history_records():
                 if _value(record.state) == "submitting":
                     recover_submitting(record)
         if self.supports_refresh:
-            self._manager.refresh()
+            if isinstance(self._manager, RunManager):
+                self._manager.refresh(on_error=self._report_unreadable_record)
+            else:
+                self._manager.refresh()
         jobs = self.reload()
         # Recover any processing/downloading work that just became eligible
         # after a backend status refresh; never resubmit its calculation.

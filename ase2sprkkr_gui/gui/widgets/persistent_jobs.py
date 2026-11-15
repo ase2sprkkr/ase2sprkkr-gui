@@ -444,6 +444,7 @@ class PersistentJobsWidget(QWidget):
         supports_retry_postprocessing: bool = False,
         supports_cancel: bool = False,
         supports_forget: bool = False,
+        history_warning: str | None = None,
     ) -> None:
         """Render a complete source snapshot while preserving view selection."""
         self._all_jobs = tuple(
@@ -464,6 +465,9 @@ class PersistentJobsWidget(QWidget):
                 or "Persistent calculation jobs are not available in this "
                 "ASE2SPRKKR version yet."
             )
+            self.backend_notice.show()
+        elif history_warning:
+            self.backend_notice.setText(history_warning)
             self.backend_notice.show()
         elif not self._all_jobs:
             self.backend_notice.setText(
