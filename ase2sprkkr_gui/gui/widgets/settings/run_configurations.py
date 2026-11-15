@@ -41,6 +41,7 @@ class RunConfigurationsPage(QFrame):
         self._editor = ExecutionProfileEditor(self._store)
         self._drafts = self._editor.drafts
         self._original_drafts = self._draft_snapshot()
+        self._original_default = self._editor.default_profile
         self._loaded_values = None
 
         root = QVBoxLayout(self)
@@ -87,6 +88,24 @@ class RunConfigurationsPage(QFrame):
         row.addWidget(self.add_button)
         row.addWidget(self.delete_button)
         left_layout.addLayout(row)
+
+        self.default_status = QLabel(left)
+        self.default_status.setWordWrap(True)
+        left_layout.addWidget(self.default_status)
+        default_actions = QHBoxLayout()
+        self.make_default_button = QPushButton("Make default", left)
+        self.make_default_button.setToolTip(
+            "Use this profile when a calculation does not select one explicitly."
+        )
+        self.make_default_button.clicked.connect(self._make_default)
+        self.automatic_default_button = QPushButton("Use automatic", left)
+        self.automatic_default_button.setToolTip(
+            "Clear the explicit default and use ASE / legacy profile fallback."
+        )
+        self.automatic_default_button.clicked.connect(self._use_automatic_default)
+        default_actions.addWidget(self.make_default_button)
+        default_actions.addWidget(self.automatic_default_button)
+        left_layout.addLayout(default_actions)
         splitter.addWidget(left)
 
         self.form = ProfileForm(splitter)
@@ -118,13 +137,32 @@ class RunConfigurationsPage(QFrame):
         current = select
         if current is None and self.list.currentItem() is not None:
             current = str(self.list.currentItem().data(Qt.ItemDataRole.UserRole))
+        # Mark the explicitly chosen profile. If the default is automatic,
+        # show the currently resolved ASE/legacy fallback when available.
+        explicit = self._editor.default_profile
+        implicit = (
+            self._store.resolved_name(None)
+            if explicit is None and self._original_default is None
+            else None
+        )
+        marked = explicit if explicit is not None else implicit
         self.list.blockSignals(True)
         self.list.clear()
         for name in sorted(self._drafts):
             draft = self._drafts[name]
             kind = kind_label(draft_kind(draft.values))
             suffix = " · read-only" if draft.read_only else ""
-            item = QListWidgetItem(f"{name}\n{kind}{suffix}")
+            if name == marked:
+                kind += " · default" if explicit is not None else " · automatic default"
+            item = QListWidgetItem(f"{'★ ' if name == marked else ''}{name}\n{kind}{suffix}")
+            if name == marked:
+                font = item.font()
+                font.setBold(True)
+                item.setFont(font)
+                item.setToolTip(
+                    "Explicit default profile" if explicit is not None
+                    else "Current automatic fallback profile"
+                )
             item.setData(Qt.ItemDataRole.UserRole, name)
             self.list.addItem(item)
             if name == current:
@@ -134,6 +172,12 @@ class RunConfigurationsPage(QFrame):
             self.list.setCurrentRow(0)
         else:
             self._selection_changed(self.list.currentItem(), None)
+        if explicit is None:
+            self.default_status.setText(
+                "Default: Automatic (ASE / legacy fallback)"
+            )
+        else:
+            self.default_status.setText(f"Default: {explicit}")
 
     def _selection_changed(
         self,
@@ -151,6 +195,10 @@ class RunConfigurationsPage(QFrame):
             self._loaded_values = None
             self.form.setEnabled(False)
             self.delete_button.setEnabled(False)
+            self.make_default_button.setEnabled(False)
+            self.automatic_default_button.setEnabled(
+                self._editor.default_profile is not None
+            )
             return
         name = str(current.data(Qt.ItemDataRole.UserRole))
         draft = self._drafts[name]
@@ -159,6 +207,26 @@ class RunConfigurationsPage(QFrame):
         self.form.load(draft)
         self._loaded_values = self.form.values()
         self.delete_button.setEnabled(not draft.read_only)
+        self.make_default_button.setEnabled(
+            name != self._editor.default_profile
+        )
+        self.automatic_default_button.setEnabled(
+            self._editor.default_profile is not None
+        )
+
+    def _make_default(self) -> None:
+        item = self.list.currentItem()
+        if item is None:
+            return
+        self._store_current()
+        name = str(item.data(Qt.ItemDataRole.UserRole))
+        self._editor.set_default(name)
+        self._reload_list(name)
+
+    def _use_automatic_default(self) -> None:
+        self._store_current()
+        self._editor.set_default(None)
+        self._reload_list()
 
     def _add_profile(self) -> None:
         self._store_current()
@@ -183,7 +251,8 @@ class RunConfigurationsPage(QFrame):
     def save(self) -> None:
         """Persist edits when the owning settings dialog is accepted."""
         self._store_current()
-        if self._draft_snapshot() != self._original_drafts:
+        if (self._draft_snapshot() != self._original_drafts
+                or self._editor.default_profile != self._original_default):
             self._editor.save()
 
 

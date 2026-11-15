@@ -19,7 +19,7 @@ from ase2sprkkr_gui.gui.application.viewers import viewer_unavailability
 
 
 _DATASET_MODE_LABELS = (
-    ("empty", "Leave unset (ASE2SPRKKR automatic)"),
+    ("empty", "Leave unset (ase2sprkkr automatic)"),
     ("datetime", "Structure + date/time"),
     ("uuid", "Structure + UUID"),
 )
@@ -93,7 +93,7 @@ class GeneralSettingsPage(QFrame):
             settings.share_python_shell_history
         )
         self.share_python_shell_history.setToolTip(
-            "Ase2sprkkr always saves its own command history. When enabled, "
+            "ase2sprkkr always saves its own command history. When enabled, "
             "also load the ordinary Python REPL history and append new "
             "Ase2sprkkr commands to it."
         )

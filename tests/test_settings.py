@@ -86,6 +86,13 @@ class _FakeProfileStore:
 
     def __init__(self):
         self.saved = []
+        self.defaults = []
+
+    def default_profile_name(self):
+        return None
+
+    def resolved_name(self, name):
+        return name
 
     def drafts(self):
         from ase2sprkkr_gui.gui.application.execution_profiles import ProfileDraft
@@ -96,10 +103,11 @@ class _FakeProfileStore:
             )
         }
 
-    def save(self, drafts):
+    def save(self, drafts, *, default_profile=None):
         self.saved.append({
             name: dict(draft.values) for name, draft in drafts.items()
         })
+        self.defaults.append(default_profile)
 
 
 def test_settings_has_independent_frame_tabs(tmp_path):
@@ -107,6 +115,7 @@ def test_settings_has_independent_frame_tabs(tmp_path):
 
     from ase2sprkkr_gui.gui.dialogs.settings import SettingsDialog
     from ase2sprkkr_gui.gui.widgets.settings.general import GeneralSettingsPage
+    from ase2sprkkr_gui.gui.widgets.settings.ase2sprkkr import Ase2sprkkrSettingsPage
     from ase2sprkkr_gui.gui.widgets.settings.run_configurations import RunConfigurationsPage
 
     dialog = SettingsDialog(
@@ -114,11 +123,13 @@ def test_settings_has_independent_frame_tabs(tmp_path):
         profile_store=_FakeProfileStore(),
     )
     assert [dialog.tabs.tabText(i) for i in range(dialog.tabs.count())] == [
-        "General", "Run configurations"
+        "General", "Run configurations", "Ase2sprkkr"
     ]
-    assert all(isinstance(dialog.tabs.widget(i), QFrame) for i in range(2))
+    assert all(isinstance(dialog.tabs.widget(i), QFrame) for i in range(3))
     assert isinstance(dialog.general_page, GeneralSettingsPage)
     assert isinstance(dialog.run_configurations_page, RunConfigurationsPage)
+    assert isinstance(dialog.ase2sprkkr_page, Ase2sprkkrSettingsPage)
+    assert "not GUI-specific" in dialog.ase2sprkkr_page.scope_notice.text()
     assert dialog.general_page.visualization_group.title() == "Visualization"
     assert dialog.general_page.sprkkr_group.title() == "SPR-KKR"
     assert dialog.general_page.python_shell_group.title() == "Python shell"
@@ -213,7 +224,7 @@ def test_settings_run_profile_save_failure_keeps_dialog_open(tmp_path, monkeypat
     from ase2sprkkr_gui.gui.dialogs.settings import SettingsDialog
 
     class FailingStore(_FakeProfileStore):
-        def save(self, drafts):
+        def save(self, drafts, *, default_profile=None):
             raise OSError("profiles are read-only")
 
     messages = []

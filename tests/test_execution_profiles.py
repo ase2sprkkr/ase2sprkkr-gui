@@ -16,6 +16,12 @@ def _app():
 
 
 class _ReadOnlyStore:
+    def default_profile_name(self):
+        return None
+
+    def resolved_name(self, name):
+        return "ase" if name is None else name
+
     def drafts(self):
         return {
             "ase": ProfileDraft(

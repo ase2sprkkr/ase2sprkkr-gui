@@ -1,6 +1,8 @@
 """Application settings dialog composing independent tab pages."""
 from __future__ import annotations
 
+from typing import Any
+
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -14,6 +16,7 @@ from ase2sprkkr_gui.gui.application.execution_profiles import ExecutionProfileSt
 from ase2sprkkr_gui.gui.application.settings import ApplicationSettings
 from ase2sprkkr_gui.gui.widgets.settings.run_configurations import RunConfigurationsPage
 from ase2sprkkr_gui.gui.widgets.settings.general import GeneralSettingsPage
+from ase2sprkkr_gui.gui.widgets.settings.ase2sprkkr import Ase2sprkkrSettingsPage
 
 
 class SettingsDialog(QDialog):
@@ -25,6 +28,7 @@ class SettingsDialog(QDialog):
         parent: QWidget | None = None,
         *,
         profile_store: ExecutionProfileStore | None = None,
+        ase_configuration: Any | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Settings")
@@ -36,11 +40,23 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.tabs, 1)
 
         self.general_page = GeneralSettingsPage(settings, self.tabs)
+        if profile_store is None:
+            profile_store = ExecutionProfileStore(ase_configuration)
         self.run_configurations_page = RunConfigurationsPage(
             self.tabs, store=profile_store
         )
         self.tabs.addTab(self.general_page, "General")
         self.tabs.addTab(self.run_configurations_page, "Run configurations")
+        configuration = (
+            ase_configuration if ase_configuration is not None
+            else profile_store.configuration if isinstance(
+                profile_store, ExecutionProfileStore
+            ) else None
+        )
+        self.ase2sprkkr_page = Ase2sprkkrSettingsPage(
+            self.tabs, configuration=configuration
+        )
+        self.tabs.addTab(self.ase2sprkkr_page, "Ase2sprkkr")
 
         self.viewer = self.general_page.viewer
         self.viewer_warning = self.general_page.viewer_warning
@@ -59,6 +75,11 @@ class SettingsDialog(QDialog):
         layout.addWidget(buttons)
 
     def accept(self) -> None:  # type: ignore[override]
+        try:
+            self.ase2sprkkr_page.changes()  # Validate before writing settings.
+        except ValueError as exc:
+            QMessageBox.critical(self, "Invalid ase2sprkkr configuration", str(exc))
+            return
         reason = self.general_page.selected_viewer_unavailability()
         if reason:
             answer = QMessageBox.warning(
@@ -96,6 +117,11 @@ class SettingsDialog(QDialog):
             self.run_configurations_page.save()
         except (OSError, TypeError, ValueError) as exc:
             QMessageBox.critical(self, "Cannot Save Run Configurations", str(exc))
+            return
+        try:
+            self.ase2sprkkr_page.save()
+        except (OSError, TypeError, ValueError) as exc:
+            QMessageBox.critical(self, "Cannot save ase2sprkkr configuration", str(exc))
             return
         super().accept()
 

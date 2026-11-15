@@ -8,6 +8,21 @@
   backend reattachment capabilities from saving persistent project records.
 - Requires ASE2SPRKKR 4.0.0 beta5 and KKRunner 0.2.0 beta3.
 
+### Features
+
+- Added a dedicated Ase2sprkkr configuration tab in GUI settings, clearly
+  distinguishing library-wide settings from GUI preferences. It edits
+  empty-sphere defaults, output filtering, and NOMAD authentication. The
+  output filter offers All, Info+Regex, Regex and None, showing a regex
+  field for the two middle modes. Existing combinations of output filters
+  are represented using an unambiguous quoted tuple
+  (``"ERROR"|"WARNING"``), via the shared normalization in ase2sprkkr;
+  a True/all-output setting takes precedence. Unchanged values are
+  preserved when saving other settings. The default-profile selection lives in the execution-profile
+  editor, with a highlighted default and Make default / Use automatic
+  actions. Changes use ase2sprkkr's shared configuration API.
+
+
 ### Fixes
 
 - Fixed application shutdown after exit confirmation: the workflow window now

@@ -113,6 +113,34 @@ def test_profile_store_saves_only_mutable_profiles():
     assert config.saved
 
 
+def test_profile_store_keeps_existing_default_on_unrelated_edits():
+    config = _Config(default_profile="local")
+    store = ExecutionProfileStore(config)
+    drafts = store.drafts()
+    drafts["local"].values["mpi"] = 8
+
+    # Backwards-compatible callers need not specify the default explicitly.
+    store.save(drafts)
+
+    assert config.default_profile() == "local"
+    assert config.saved
+
+
+def test_profile_editor_stages_default_without_mutating_backend():
+    config = _Config()
+    editor = ExecutionProfileEditor(ExecutionProfileStore(config))
+    editor.set_default("local")
+    assert editor.default_profile == "local"
+    assert config.default_profile() is None
+    with pytest.raises(ValueError, match="Unknown execution profile"):
+        editor.set_default("missing")
+    editor.save()
+    assert config.default_profile() == "local"
+
+    editor.delete("local")
+    assert editor.default_profile is None
+
+
 def test_profile_store_clears_default_when_that_profile_is_deleted():
     config = _Config(default_profile="local")
     store = ExecutionProfileStore(config)

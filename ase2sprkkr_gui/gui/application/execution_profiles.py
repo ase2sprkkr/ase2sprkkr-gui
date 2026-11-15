@@ -9,6 +9,7 @@ from ase2sprkkr import config
 from ase2sprkkr.sprkkr.profile import resolve_sprkkr_profile
 
 _DEFAULT_PROFILE_VALUES = {"executor": "local", "mpi": "auto", "mpi_warning": True}
+_DEFAULT_UNCHANGED = object()
 
 
 @dataclass
@@ -107,6 +108,11 @@ class ExecutionProfileStore:
         self._config = config if configuration is None else configuration
 
     @property
+    def configuration(self) -> Any:
+        """Underlying ASE2SPRKKR configuration shared with other settings pages."""
+        return self._config
+
+    @property
     def reserved_names(self) -> frozenset[str]:
         """Names that the backend reserves for special profile views."""
         return frozenset(str(name) for name in self._config.profiles.reserved_names)
@@ -126,6 +132,10 @@ class ExecutionProfileStore:
         """Return configured profile names in backend order."""
         return tuple(str(name) for name in self._config.profiles)
 
+    def default_profile_name(self) -> str | None:
+        """Return the explicitly selected default (None means ASE fallback)."""
+        return self._config.default_profile()
+
     def resolved_name(self, name: str | None) -> str | None:
         """Resolve ``None`` to the configured default profile name."""
         return self._config.profiles.resolve_name(name)
@@ -134,17 +144,27 @@ class ExecutionProfileStore:
         """Describe a profile using this store's configuration context."""
         return profile_description(name, configuration=self._config)
 
-    def save(self, drafts: dict[str, ProfileDraft]) -> None:
-        """Persist mutable drafts and keep the default profile valid."""
+    def save(
+        self,
+        drafts: dict[str, ProfileDraft],
+        *,
+        default_profile: str | None | object = _DEFAULT_UNCHANGED,
+    ) -> None:
+        """Persist profile edits and the selected default in one YAML write."""
+        if default_profile is _DEFAULT_UNCHANGED:
+            default_profile = self._config.default_profile()
+            if default_profile not in drafts:
+                default_profile = None
+        if default_profile is not None and default_profile not in drafts:
+            raise ValueError(f"Unknown default execution profile: {default_profile}")
         editable = {
             name: draft.values
             for name, draft in drafts.items()
             if not draft.read_only
         }
         self._config.profiles.set(editable)
-        default_profile = self._config.default_profile()
-        if default_profile is not None and default_profile not in drafts:
-            self._config.default_profile.set(None)
+        if self._config.default_profile() != default_profile:
+            self._config.default_profile.set(default_profile)
         self._config.save_user_preferences()
 
 
@@ -154,6 +174,13 @@ class ExecutionProfileEditor:
     def __init__(self, store: ExecutionProfileStore) -> None:
         self._store = store
         self.drafts = store.drafts()
+        self.default_profile = store.default_profile_name()
+
+    def set_default(self, name: str | None) -> None:
+        """Stage an explicit default, or None to use automatic resolution."""
+        if name is not None and name not in self.drafts:
+            raise ValueError(f"Unknown execution profile: {name}")
+        self.default_profile = name
 
     def add(self, name: str) -> ProfileDraft:
         name = name.strip()
@@ -168,6 +195,8 @@ class ExecutionProfileEditor:
         if draft.read_only:
             raise ValueError(f"Profile {name!r} is read-only.")
         del self.drafts[name]
+        if name == self.default_profile:
+            self.default_profile = None
 
     def save(self) -> None:
-        self._store.save(self.drafts)
+        self._store.save(self.drafts, default_profile=self.default_profile)
