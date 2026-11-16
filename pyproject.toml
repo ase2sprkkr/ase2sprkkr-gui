@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ase2sprkkr-gui"
-version = "0.2.0b2"
+version = "0.2.0b3"
 description = "PyQt6 GUI for building/editing ASE structures and running SPR-KKR via ase2sprkkr."
 readme = "README.md"
 requires-python = ">=3.9"
