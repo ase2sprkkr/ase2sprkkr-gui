@@ -11,6 +11,7 @@ from kkrunner.files import FileState, FileVersion
 from ase2sprkkr_gui.gui.application.potential_version import PotentialFileVersion
 from ase2sprkkr_gui.gui.application.result_contract import ResultCapabilities
 from ase2sprkkr_gui.gui.application.result_files import capture_result_files
+from ase2sprkkr.outputs import result_file_version
 from ase2sprkkr_gui.gui.application.structure_snapshot import StructureSnapshot
 from ase2sprkkr_gui.gui.application.workspace import EmptySpheresState
 from ase2sprkkr_gui.physics.composition import structure_formula
@@ -589,7 +590,7 @@ class ResultStore:
             restart_scf=restart_scf,
             output_path=output_path,
             output_version=(
-                FileVersion.capture(output_path) if output_path is not None else None
+                result_file_version(result, output_path) if output_path is not None else None
             ),
             potential_path=potential_path,
             imported=imported,

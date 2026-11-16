@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from hashlib import sha256
 from pathlib import Path
+
+from kkrunner.support.file_locks import FileLock
 
 from ase2sprkkr_gui.gui.application.atomic_io import atomic_write_json
 
@@ -32,15 +35,23 @@ def assignments(projects) -> dict[str, str | None]:
     return {str(k): None if v is None else str(v) for k, v in values.items()}
 
 
+@contextmanager
+def _update_assignments(projects):
+    """Serialize read/check/write across threads and GUI instances."""
+    with FileLock(assignment_path(projects).with_suffix(".lock")):
+        mapping = assignments(projects)
+        yield mapping
+        _save_assignments(projects, mapping)
+
+
 def assign(projects, records, project_id: str) -> int:
     """Assign output references to one existing project."""
     projects.project(project_id)
-    mapping = assignments(projects)
     keys = [key for record in records if (key := result_key(record)) is not None]
     if not keys:
         return 0
-    mapping.update({key: project_id for key in keys})
-    _save_assignments(projects, mapping)
+    with _update_assignments(projects) as mapping:
+        mapping.update({key: project_id for key in keys})
     return len(keys)
 
 
@@ -55,28 +66,27 @@ def reassign_references(
     """Move file references without changing an actual calculation run."""
     if destination is not None:
         projects.project(destination)
-    mapping = assignments(projects)
-    identities = {reference_id(key): key for key in mapping}
-    for ref_id in reference_ids:
-        key = identities.get(ref_id)
-        if key is None:
-            raise KeyError(ref_id)
-        if mapping[key] != expected_project_ids[ref_id]:
-            raise ValueError(f"Project assignment changed for {ref_id}")
-    for ref_id in reference_ids:
-        mapping[identities[ref_id]] = destination
-    _save_assignments(projects, mapping)
+    reference_ids = tuple(reference_ids)
+    with _update_assignments(projects) as mapping:
+        identities = {reference_id(key): key for key in mapping}
+        for ref_id in reference_ids:
+            key = identities.get(ref_id)
+            if key is None:
+                raise KeyError(ref_id)
+            if mapping[key] != expected_project_ids[ref_id]:
+                raise ValueError(f"Project assignment changed for {ref_id}")
+        for ref_id in reference_ids:
+            mapping[identities[ref_id]] = destination
 
 
 def remove_reference(projects, ref_id: str) -> None:
     """Forget only the project reference, not the physical output file."""
-    mapping = assignments(projects)
-    for key in tuple(mapping):
-        if reference_id(key) == ref_id:
-            del mapping[key]
-            _save_assignments(projects, mapping)
-            return
-    raise KeyError(ref_id)
+    with _update_assignments(projects) as mapping:
+        for key in tuple(mapping):
+            if reference_id(key) == ref_id:
+                del mapping[key]
+                return
+        raise KeyError(ref_id)
 
 
 def _save_assignments(projects, mapping: dict[str, str | None]) -> None:

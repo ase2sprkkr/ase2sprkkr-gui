@@ -33,6 +33,61 @@ def test_imported_result_project_assignment_persists(tmp_path):
     ]
 
 
+def test_concurrent_import_assignments_keep_both_references(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    from ase2sprkkr_gui.gui.application import imported_project_results as refs
+
+    projects = ProjectRepository(tmp_path / "projects")
+    project = projects.create("Concurrent imports")
+    records = [SimpleNamespace(output_path=tmp_path / name, output_version=None)
+               for name in ("one.out", "two.out")]
+    first_read, second_read, release = Event(), Event(), Event()
+    read = refs.assignments
+
+    def pause_first_read(repo):
+        values = read(repo)
+        if not first_read.is_set():
+            first_read.set()
+            assert release.wait(5)
+        else:
+            second_read.set()
+        return values
+
+    monkeypatch.setattr(refs, "assignments", pause_first_read)
+    with ThreadPoolExecutor(2) as pool:
+        first = pool.submit(refs.assign, projects, records[:1], project.id)
+        assert first_read.wait(5)
+        second = pool.submit(refs.assign, projects, records[1:], project.id)
+        try:
+            assert not second_read.wait(0.1), "A concurrent writer read an uncommitted snapshot"
+        finally:
+            release.set()
+        assert first.result(timeout=5) == second.result(timeout=5) == 1
+    assert len(read(projects)) == 2
+
+
+def test_stale_import_move_leaves_all_associations_unchanged(tmp_path):
+    import pytest
+
+    from ase2sprkkr_gui.gui.application import imported_project_results as refs
+
+    projects = ProjectRepository(tmp_path / "projects")
+    first, second = projects.create("First"), projects.create("Second")
+    records = [SimpleNamespace(output_path=tmp_path / name, output_version=None)
+               for name in ("one.out", "two.out")]
+    refs.assign(projects, records, first.id)
+    identities = [refs.reference_id(refs.result_key(record)) for record in records]
+    refs.reassign_references(projects, identities[:1], second.id,
+                             expected_project_ids={identities[0]: first.id})
+    before = refs.assignments(projects)
+    with pytest.raises(ValueError, match="assignment changed"):
+        refs.reassign_references(projects, identities, None,
+                                 expected_project_ids=dict.fromkeys(identities, first.id))
+    assert refs.assignments(projects) == before
+
+
 def test_directory_import_skips_unparseable_files_and_keeps_workspace(
     tmp_path, monkeypatch,
 ):

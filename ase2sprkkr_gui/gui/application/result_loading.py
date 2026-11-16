@@ -99,7 +99,13 @@ def load_result(
     output, potential = _result_files(result, fallback_directory)
     if output is None and output_fallback is not None:
         output = Path(output_fallback).resolve()
-    atoms, potential_error = _load_potential(potential)
+    try:
+        if potential is not None and getattr(result, "run_record", None) is not None:
+            result.require_current_file(potential)
+    except OSError as exc:
+        atoms, potential_error = None, exc
+    else:
+        atoms, potential_error = _load_potential(potential)
     input_parameters, input_parameters_error = _load_input_parameters(result)
     directory = str(output.parent.resolve()) if output is not None else None
     return LoadedResult(

@@ -13,6 +13,9 @@ from kkrunner.backends.contracts import BackendCapability
 from kkrunner.files.versions import file_digest
 from kkrunner.projects import ProjectRepository, ProjectRunManager
 from kkrunner.runs.manager import RunManager
+from kkrunner.runs.conflicts import (
+    file_reference_overlaps, filesystem_namespace, referenced_paths,
+)
 from kkrunner.runs.records import CorruptRunRecord, RunStore
 from ase2sprkkr.outputs.project_results import (
     attach_project_run,
@@ -59,6 +62,8 @@ def _execution_target(record: Any) -> str:
     backend = record.execution.backend
     kind = _value(transport.kind)
     label = "Local" if transport.is_local else f"{kind.upper()} · {transport.host}"
+    if not record.execution.available:
+        return f"{label} · unavailable backend/connection ({backend.name})"
     if backend.name == "psij":
         executor_name = dict(backend.options).get("executor_name", "slurm")
         return (f"PSI/J · {executor_name}" if transport.is_local
@@ -72,6 +77,8 @@ def _attachment_availability(record: Any, state: str) -> tuple[bool, str | None]
     """Explain whether a persisted execution can be observed after a GUI restart."""
     if state in _FINAL_STATES:
         return False, None
+    if not record.execution.available:
+        return False, "The saved backend or connection is unavailable; local result files can still be viewed."
     if record.execution.backend_id is None:
         return (
             False,
@@ -102,6 +109,8 @@ def _cancellation_availability(record: Any, state: str) -> tuple[bool, str | Non
     """Do not offer unverified process killing for legacy direct identities."""
     if state in _FINAL_STATES:
         return False, None
+    if not record.execution.available:
+        return False, "The saved backend or connection is unavailable."
     token = record.execution.backend_id
     if token is None:
         return False, "This calculation has no saved process reference to cancel."
@@ -581,13 +590,13 @@ class PersistentJobSource:
         )
 
     def _remote_reference_details(self, record: Any) -> dict[str, tuple[str, ...]]:
-        """Other persisted runs using paths on the same configured SSH host."""
+        """Other persisted runs referencing the same execution filesystem."""
         references: dict[str, set[str]] = {}
         for other in self._manager.store.runs():
             if (
                 str(other.id) == str(record.id)
                 or other.execution.transport.is_local
-                or other.execution.transport.host != record.execution.transport.host
+                or filesystem_namespace(other) != filesystem_namespace(record)
             ):
                 continue
             metadata = other.metadata.get("ase2sprkkr", {})
@@ -595,7 +604,7 @@ class PersistentJobSource:
                 f"Run {other.id} ({metadata.get('dataset') or 'unknown dataset'}, "
                 f"project {getattr(other, 'project_id', None) or 'unassigned'})"
             )
-            for path in referenced_remote_paths(other.files):
+            for path in referenced_paths(other):
                 references.setdefault(posixpath.normpath(path), set()).add(label)
         return {path: tuple(sorted(labels)) for path, labels in references.items()}
 
@@ -605,7 +614,7 @@ class PersistentJobSource:
         if job is None or job.imported_path is not None or not job.is_final:
             raise ValueError("Remote deletion is available only for finished tracked SSH runs")
         record = self._manager.store.get(str(job_id))
-        if record.execution.transport.is_local:
+        if record.execution.transport.is_local or not record.execution.available:
             raise ValueError("This run has no remote files")
         candidates = referenced_remote_paths(record.files)
         referrers = self._remote_reference_details(record)
@@ -623,10 +632,7 @@ class PersistentJobSource:
             path = posixpath.normpath(snapshot.path)
             labels = set()
             for reference, names in referrers.items():
-                if (path == reference
-                        or snapshot.kind == "directory"
-                        and posixpath.commonpath((path, reference)) == path
-                        or posixpath.commonpath((path, reference)) == reference):
+                if file_reference_overlaps(path, reference, directory=snapshot.kind == "directory"):
                     labels.update(names)
             return tuple(sorted(labels))
 
@@ -646,7 +652,7 @@ class PersistentJobSource:
         if job is None or not job.is_final or job.imported_path is not None:
             raise ValueError("Remote cleanup requires a finished persisted run")
         record = self._manager.store.get(str(job_id))
-        if record.execution.transport.is_local:
+        if record.execution.transport.is_local or not record.execution.available:
             raise ValueError("The selected run has no SSH connection")
         return record
 
@@ -674,10 +680,7 @@ class PersistentJobSource:
             norm = posixpath.normpath(path)
             current_labels = set()
             for reference, labels in references.items():
-                if (norm == reference
-                        or snapshot.kind == "directory"
-                        and posixpath.commonpath((norm, reference)) == norm
-                        or posixpath.commonpath((norm, reference)) == reference):
+                if file_reference_overlaps(norm, reference, directory=snapshot.kind == "directory"):
                     current_labels.update(labels)
             if before != tuple(sorted(current_labels)):
                 skipped.append({"path": path, "status": "skipped",

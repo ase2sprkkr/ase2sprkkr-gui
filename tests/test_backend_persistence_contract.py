@@ -4,12 +4,13 @@ from types import SimpleNamespace
 
 from ase import Atoms
 from ase2sprkkr import InputParameters, TaskResult
-from kkrunner.projects import ProjectRunManager, ProjectRepository
-from kkrunner.runs import RunState, RunStore
-from kkrunner.files import FileEntry, FileManifest
-from kkrunner.client import LocalTransport
-from kkrunner.backends import BackendConfig
 from ase2sprkkr.outputs.reader_registry import reader_registry
+from ase2sprkkr.outputs.task_result import KkrOutputReader
+from kkrunner.backends import BackendConfig
+from kkrunner.client import LocalTransport
+from kkrunner.files import FileEntry, FileManifest
+from kkrunner.projects import ProjectRepository, ProjectRunManager
+from kkrunner.runs import RunState, RunStore
 
 from ase2sprkkr_gui.gui.application.persistent_jobs import PersistentJobSource
 from ase2sprkkr_gui.gui.application.result_store import ResultStore
@@ -53,38 +54,19 @@ def test_persistent_task_identity_round_trip_drives_recompute_editor(
     manager.store.save(run)
     run = manager.complete(run, state=RunState.FINISHED, return_code=0, artifacts_available=True)
 
-    class Reader:
-        def __init__(
-            self,
-            input_parameters,
-            calculator,
-            directory,
-            task_name=None,
-        ):
-            self.input_parameters = input_parameters
-            self.calculator = calculator
-            self.directory = directory
-            self.task_name = task_name
+    class SyntheticParser:
+        def __init__(self, print_info=False):
+            pass
 
-        def read_from_file(
-            self,
-            output_file,
-            error_file=None,
-            *,
-            return_code,
-            input_file=None,
-            directory=None,
-        ):
-            result = TaskResult(
-                self.input_parameters,
-                self.calculator,
-                directory or self.directory,
-                output_file=output_file,
-                input_file=input_file,
-                task_name=self.task_name,
-            )
-            result.complete(None, return_code)
-            return result
+        def read_from_file(self, output_file, error_file, results, return_code):
+            # Provenance must be attached before parsing, not only to the
+            # completed result returned to the GUI.
+            assert results[0].run_record.id == run.id
+            return None, None, return_code
+
+    class Reader(KkrOutputReader):
+        parser_class = SyntheticParser
+        result_class = TaskResult
 
     resolved_tasks = []
 

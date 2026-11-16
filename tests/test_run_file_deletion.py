@@ -316,7 +316,14 @@ def test_symlink_cannot_be_selected_even_when_other_run_references_it(tmp_path):
 
 
 
-def test_ssh_preview_uses_manifest_and_detects_shared_remote_references(tmp_path):
+@pytest.mark.parametrize("other_host", ("cluster", "cluster-alias"))
+def test_ssh_preview_uses_manifest_and_detects_shared_remote_references(tmp_path, other_host):
+    from dataclasses import replace
+
+    from kkrunner.files import FileMapping
+
+    mapping = FileMapping(local_root=str(tmp_path), remote_root="/remote/directory",
+                          filesystem_id="shared-cluster-storage")
     path = "/remote/directory/shared.pot"
     solo = "/remote/directory/unique.out"
     first = _record(
@@ -324,12 +331,13 @@ def test_ssh_preview_uses_manifest_and_detects_shared_remote_references(tmp_path
         FileManifest(outputs=(
             FileEntry(remote_path=path),
             FileEntry(remote_path=solo),
-        )),
+        ), mapping=mapping),
     )
     second = _record(
         "second", tmp_path,
-        FileManifest(inputs=(FileEntry(remote_path=path),)),
+        FileManifest(inputs=(FileEntry(remote_path=path),), mapping=mapping),
     )
+    second.execution = replace(second.execution, transport=SshTransport(other_host))
     source, _store = _source(first, second)
 
     class Client:
