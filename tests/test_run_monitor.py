@@ -10,7 +10,11 @@ from PyQt6.QtWidgets import QApplication, QPlainTextEdit
 
 from ase2sprkkr_gui.gui.application.execution_cancellation import RunCancellation
 from ase2sprkkr_gui.gui.application.persistent_jobs import PersistentJob
-from ase2sprkkr_gui.gui.dialogs.attached_run import AttachedRunWorker
+from ase2sprkkr_gui.gui.dialogs.attached_run import (
+    AttachedRunWorker,
+    create_attached_run_monitor_window,
+)
+from ase2sprkkr_gui.gui.dialogs.run_calculation import SprkkrRunWindow
 from ase2sprkkr_gui.gui.dialogs.run_monitor import (
     MAX_LOGICAL_LINE_LENGTH,
     MAX_OUTPUT_BLOCKS,
@@ -164,3 +168,27 @@ def test_attached_monitor_stop_button_describes_observation_only():
     )
     assert window._stop_btn.text() == "Stop monitoring"
     assert window._cancellation._observation_only
+
+
+def test_attached_monitor_displays_selectable_persistent_job_id():
+    app = QApplication.instance() or QApplication([])
+    job = _job()
+    window = create_attached_run_monitor_window(job, _Source(None), autostart=False)
+
+    assert window._job_id_label.text() == f"Job ID: {job.id}"
+    assert not window._job_id_label.isHidden()
+    window.close()
+
+
+def test_new_run_displays_job_id_when_persistent_id_arrives():
+    app = QApplication.instance() or QApplication([])
+    window = SprkkrRunWindow(SimpleNamespace(directory="/tmp/calc"))
+    ids = []
+    window.persistentJobChanged.connect(ids.append)
+
+    assert window._job_id_label.isHidden()
+    window._persistent_job_changed_received("run-17")
+    assert window._job_id_label.text() == "Job ID: run-17"
+    assert not window._job_id_label.isHidden()
+    assert ids == ["run-17"]
+    window.close()

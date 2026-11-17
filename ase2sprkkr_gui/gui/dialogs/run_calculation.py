@@ -143,6 +143,7 @@ class SprkkrRunWindow(RunMonitorWindow):
 
     @pyqtSlot(str)
     def _persistent_job_changed_received(self, job_id: str) -> None:
+        self.set_job_id(job_id)
         self.persistentJobChanged.emit(job_id)
 
     def _return_to_setup(self) -> None:

@@ -77,6 +77,7 @@ def create_attached_run_monitor_window(
         title=f"Monitor {job.task or 'SPRKKR'} Calculation",
         header=f"{title}\n{job.target} · {job.directory}",
         initial_status=state_label(job.state),
+        job_id=job.id,
         on_finished=on_finished,
         autostart=autostart,
         observation_only=True,

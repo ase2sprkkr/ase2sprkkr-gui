@@ -293,6 +293,10 @@ class GuiApplication(QObject):
         if kind is None:
             return True
         parent = self.create_workflow_window()
+        if kind == "job":
+            if not file_path:
+                return False
+            return self.persistent_jobs_controller.open_job(file_path, parent)
 
         if kind == "last":
             # Last structure is independent of the most recently used output.

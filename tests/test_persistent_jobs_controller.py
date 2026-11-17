@@ -941,3 +941,74 @@ def test_remote_directory_tree_preview_is_not_confused_with_local_file(tmp_path)
     assert dialog.selected_remote_snapshots[0].kind == "directory"
     assert "recursively" in dialog.selection_summary.text()
     dialog.close()
+
+
+def test_open_job_by_id_follows_unfinished_run(monkeypatch):
+    _application = QApplication.instance() or QApplication([])
+    job = _job("run-17")
+    source = _Source((job,))
+    controller = PersistentJobsController(source)
+    opened = []
+    monkeypatch.setattr(controller, "open_monitor_window", opened.append)
+    parent = QWidget()
+
+    assert controller.open_job(job.id, parent)
+    assert opened == [job.id]
+    assert source.job_changed_calls == [job.id]
+    parent.close()
+
+
+def test_open_job_by_id_loads_completed_result(monkeypatch):
+    _application = QApplication.instance() or QApplication([])
+    job = _job("run-17", state="finished")
+    source = _Source((job,))
+    source.supports_results = True
+    controller = PersistentJobsController(source)
+    loaded = []
+    monkeypatch.setattr(
+        controller, "_load_result_requested",
+        lambda parent, job_id: loaded.append((parent, job_id)),
+    )
+    parent = QWidget()
+
+    assert controller.open_job(job.id, parent)
+    assert loaded == [(parent, job.id)]
+    parent.close()
+
+
+def test_open_job_by_id_missing_or_unattachable_warns(monkeypatch):
+    _application = QApplication.instance() or QApplication([])
+    job = _job("run-17", state="running")
+    source = _Source((job,))
+    controller = PersistentJobsController(source)
+    parent = QWidget()
+    warnings = []
+    monkeypatch.setattr(
+        controller_module.QMessageBox, "warning",
+        lambda _parent, title, message: warnings.append((title, message)),
+    )
+    assert not controller.open_job("no-such-id", parent)
+    assert "not found" in warnings[-1][1]
+    source.publish(replace(job, attachable=False,
+                           reattach_unavailable_reason="No saved backend identity"))
+    assert not controller.open_job(job.id, parent)
+    assert warnings[-1] == ("Cannot Follow Job", "No saved backend identity")
+    parent.close()
+
+
+def test_open_job_download_failure_explains_retry(monkeypatch):
+    _application = QApplication.instance() or QApplication([])
+    job = _job("run-17", state="failed")
+    source = _Source((job,))
+    source.supports_results = True
+    controller = PersistentJobsController(source)
+    parent = QWidget()
+    warnings = []
+    monkeypatch.setattr(
+        controller_module.QMessageBox, "warning",
+        lambda _parent, title, message: warnings.append((title, message)),
+    )
+    assert job.can_retry_download
+    assert not controller.open_job(job.id, parent)
+    assert "Retry download" in warnings[-1][1]
+    parent.close()

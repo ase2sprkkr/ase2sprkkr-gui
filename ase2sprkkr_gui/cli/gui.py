@@ -27,6 +27,10 @@ def parser(parser):
         "--output", metavar="PATH",
         help="Open a SPR-KKR result file or import an output directory.",
     )
+    group.add_argument(
+        "--job", metavar="ID",
+        help="Follow an unfinished persistent job or open its completed result.",
+    )
 
 
 def startup_selection(args):
@@ -38,6 +42,7 @@ def startup_selection(args):
             ("structure", getattr(args, "structure", None)),
             ("input", getattr(args, "input", None)),
             ("output", getattr(args, "output", None)),
+            ("job", getattr(args, "job", None)),
         )
         if value is not None
     ]
@@ -45,7 +50,8 @@ def startup_selection(args):
         choices.append(("last", None))
     if len(choices) > 1:
         raise ValueError(
-            "Specify a FILE, --open-last, --structure, --input, or --output, "
+            "Specify a FILE, --open-last, --structure, --input, --output, "
+            "or --job, "
             "but not more than one."
         )
     return choices[0] if choices else (None, None)
@@ -61,7 +67,7 @@ def run(args, global_args):
         raise SystemExit(f"ase2sprkkr gui: {exc}") from exc
     if kind == "last":
         argv = ["--open-last"]
-    elif kind in {"structure", "input", "output"}:
+    elif kind in {"structure", "input", "output", "job"}:
         argv = [f"--{kind}", str(path)]
     elif kind == "auto":
         argv = [str(path)]

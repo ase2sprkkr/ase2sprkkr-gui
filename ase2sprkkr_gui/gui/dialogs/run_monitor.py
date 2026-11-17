@@ -66,6 +66,7 @@ class RunMonitorWindow(QDialog):
         title: str = "Calculation Run",
         header: str | None = None,
         initial_status: str = "",
+        job_id: str | None = None,
         warning_title: str = "Warning",
         on_finished: Callable[[Any], None] | None = None,
         background_thread_factory: Callable[..., Any] = Thread,
@@ -93,6 +94,13 @@ class RunMonitorWindow(QDialog):
             header_widget = QLabel(header, self)
             header_widget.setWordWrap(True)
             layout.addWidget(header_widget)
+
+        self._job_id_label = QLabel(self)
+        self._job_id_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout.addWidget(self._job_id_label)
+        self.set_job_id(job_id)
 
         self._status = QLabel(initial_status, self)
         layout.addWidget(self._status)
@@ -126,6 +134,13 @@ class RunMonitorWindow(QDialog):
 
         if autostart:
             self.start()
+
+    def set_job_id(self, job_id: str | None) -> None:
+        """Show the stable persistent run ID once one is known."""
+        self._job_id_label.setText(
+            f"Job ID: {job_id}" if job_id else ""
+        )
+        self._job_id_label.setVisible(bool(job_id))
 
     @property
     def runner(self) -> Any | None:

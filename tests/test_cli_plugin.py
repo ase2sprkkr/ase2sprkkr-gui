@@ -22,7 +22,7 @@ def test_gui_command_is_discoverable():
     assert command.description
     command_parser = argparse.ArgumentParser()
     command.parser(command_parser)
-    assert command_parser.parse_args([]) == argparse.Namespace(\n        file=None, open_last=False, structure=None, input=None, output=None\n    )
+    assert command_parser.parse_args([]) == argparse.Namespace(\n        file=None, open_last=False, structure=None, input=None, output=None, job=None\n    )
 
 
 def test_importing_gui_command_does_not_load_qt():
@@ -67,6 +67,7 @@ def test_gui_command_invokes_main_with_clean_arguments(monkeypatch, exit_code):
         (["--structure", "ambiguous.txt"], ["--structure", "ambiguous.txt"]),
         (["--input", "ambiguous.txt"], ["--input", "ambiguous.txt"]),
         (["--output", "ambiguous.txt"], ["--output", "ambiguous.txt"]),
+        (["--job", "run-17"], ["--job", "run-17"]),
     ],
 )
 def test_gui_plugin_forwards_startup_options(monkeypatch, arguments, expected):
@@ -90,6 +91,8 @@ def test_gui_plugin_forwards_startup_options(monkeypatch, arguments, expected):
         ["Fe.cif", "--open-last"],
         ["Fe.cif", "--output", "result.out"],
         ["Fe.cif", "--structure", "other.cif"],
+        ["Fe.cif", "--job", "run-17"],
+        ["--job", "run-17", "--open-last"],
     ],
 )
 def test_gui_plugin_rejects_multiple_startup_targets(arguments):

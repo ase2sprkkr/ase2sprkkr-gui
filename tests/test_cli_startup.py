@@ -116,3 +116,18 @@ def test_missing_explicit_startup_file_warns(tmp_path, monkeypatch):
     assert not gui.open_startup_selection("auto", str(tmp_path / "gone.cif"))
     assert warned[0][0] == "Cannot Open File"
     parent.close()
+
+
+def test_job_startup_routes_id_to_persistent_job_controller(tmp_path, monkeypatch):
+    application = QApplication.instance() or QApplication([])
+    gui = GuiApplication(recent_files_path=tmp_path / "recent.json")
+    parent = QWidget()
+    monkeypatch.setattr(gui, "create_workflow_window", lambda: parent)
+    called = []
+    monkeypatch.setattr(
+        gui.persistent_jobs_controller, "open_job",
+        lambda job_id, widget: called.append((job_id, widget)) or True,
+    )
+    assert gui.open_startup_selection("job", "run-17")
+    assert called == [("run-17", parent)]
+    parent.close()

@@ -9,7 +9,7 @@ from typing import Any
 from weakref import ReferenceType, ref
 
 from PyQt6.QtCore import QObject, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QMessageBox, QWidget
 
 from ase2sprkkr_gui.gui.application.persistent_jobs import PersistentJob, PersistentJobSource
 from ase2sprkkr_gui.gui.application.result_cache import ResultLRU
@@ -627,6 +627,63 @@ class PersistentJobsController(QObject):
         if job is None or not job.attachable or not self._source.supports_attach:
             return
         self._create_attached_monitor(job)
+
+    def open_job(self, job_id: str, parent: QWidget) -> bool:
+        """Open a saved job by ID, following active runs and loading final results.
+
+        This is the same lifecycle/monitor ownership used by the project browser.
+        It never launches a second native calculation.
+        """
+        job_id = str(job_id)
+        try:
+            job = self._source.job_changed(job_id)
+        except Exception as exc:  # noqa: BLE001 - saved run/backend boundary
+            QMessageBox.warning(
+                parent, "Cannot Open Job",
+                f"Cannot read persistent job {job_id}:\n{exc}",
+            )
+            return False
+        if job is None:
+            QMessageBox.warning(
+                parent, "Cannot Open Job", f"Persistent job not found: {job_id}",
+            )
+            return False
+
+        if job.is_final:
+            if job.can_retry_download:
+                QMessageBox.warning(
+                    parent, "Cannot Open Job",
+                    "The calculation finished, but downloading its results failed. "
+                    "Use Retry download in the project browser.",
+                )
+                return False
+            if not self._source.supports_results:
+                QMessageBox.warning(
+                    parent, "Cannot Open Job",
+                    "The persistent result loader is unavailable.",
+                )
+                return False
+            # The existing handler loads in the modal worker, adopts the result
+            # on the GUI thread and emits resultOpened to display the workspace.
+            self._load_result_requested(parent, job_id)
+            return True
+
+        if not job.attachable or not self._source.supports_attach:
+            QMessageBox.warning(
+                parent, "Cannot Follow Job",
+                job.reattach_unavailable_reason
+                or f"Persistent job {job_id} cannot be reattached.",
+            )
+            return False
+        try:
+            self.open_monitor_window(job_id)
+        except Exception as exc:  # noqa: BLE001 - backend/Qt attachment boundary
+            QMessageBox.warning(
+                parent, "Cannot Follow Job",
+                f"Cannot follow persistent job {job_id}:\n{exc}",
+            )
+            return False
+        return True
 
     @pyqtSlot(str)
     def retry_download(self, job_id: str) -> None:

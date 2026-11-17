@@ -19,6 +19,7 @@ ase2sprkkr-gui Fe.cif             # open a structure or potential file
 ase2sprkkr-gui calculation.out    # open a SPR-KKR calculation result
 ase2sprkkr-gui results/           # import output files from a directory
 ase2sprkkr-gui --open-last        # open the latest existing recent structure
+ase2sprkkr-gui --job RUN_ID       # follow an active persistent job or open its result
 ase2sprkkr-gui --output data.txt  # disambiguate a nonstandard file extension
 ```
 
@@ -27,7 +28,10 @@ interpreted as an output for `.out`/`.log`, input parameters for
 `.inp`/`.in`, and otherwise as a structure. Use `--structure FILE`,
 `--input FILE`, or `--output PATH` to choose explicitly. `--open-last`
 uses the recent **structure** history (skipping files that no longer exist),
-even when a calculation output was opened more recently.
+even when a calculation output was opened more recently. Use `--job ID`
+to resume monitoring an unfinished persistent calculation or open the
+saved result of a finished one. The monitor displays the job ID when it
+is available.
 
 The GUI requires the ASE2SPRKKR Python backend. Running actual SPR-KKR
 calculations also requires a separately installed SPR-KKR executable.
