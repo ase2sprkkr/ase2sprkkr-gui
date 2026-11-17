@@ -286,6 +286,61 @@ class GuiApplication(QObject):
         )
         self.persistent_jobs_controller.track_launch_window(monitor_window)
 
+    def open_startup_selection(
+        self, kind: str | None, file_path: str | None
+    ) -> bool:
+        """Open a CLI-selected document using the regular GUI file workflows."""
+        if kind is None:
+            return True
+        parent = self.create_workflow_window()
+
+        if kind == "last":
+            # Last structure is independent of the most recently used output.
+            # Prune deleted entries so a stale first entry does not hide a valid one.
+            self.recent_files.remove_missing(("structure",))
+            structures = self.recent_files.paths("structure")
+            if not structures:
+                QMessageBox.warning(
+                    parent, "No Recent Structure",
+                    "There is no recently opened structure available.",
+                )
+                return False
+            kind, file_path = "structure", structures[0]
+
+        if file_path is None:
+            return False
+        path = Path(file_path).expanduser().resolve()
+        if not path.exists():
+            QMessageBox.warning(
+                parent, "Cannot Open File", f"File not found:\n{path}",
+            )
+            return False
+
+        if kind == "auto":
+            if path.is_dir() or path.suffix.lower() in {".out", ".log"}:
+                kind = "output"
+            elif path.suffix.lower() in {".inp", ".in"}:
+                kind = "input"
+            else:
+                kind = "structure"
+
+        if kind == "output" and path.is_dir():
+            return bool(file_flows.load_output_directory(
+                self.controller, self.recent_files, path, parent
+            ))
+        if not path.is_file():
+            QMessageBox.warning(
+                parent, "Cannot Open File", f"Expected a file:\n{path}",
+            )
+            return False
+
+        loaders = {
+            "structure": file_flows.load_structure,
+            "input": file_flows.load_input_parameters,
+            "output": file_flows.load_output,
+        }
+        return loaders[kind](self.controller, self.recent_files, path, parent)
+
     def show_workflow_window(self) -> None:
         """Show and activate the workflow view."""
         self._show_window(self.create_workflow_window())
@@ -450,10 +505,23 @@ def _warn_unreadable_user_yaml() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    app = QApplication(sys.argv if argv is None else [sys.argv[0], *argv])
+    import argparse
+    from ase2sprkkr_gui.cli.gui import parser as configure_gui_parser, startup_selection
+
+    cli = argparse.ArgumentParser(description="Ase2sprkkr graphical interface")
+    configure_gui_parser(cli)
+    args = cli.parse_args(sys.argv[1:] if argv is None else argv)
+    try:
+        kind, file_path = startup_selection(args)
+    except ValueError as exc:
+        cli.error(str(exc))
+
+    # Only pass Qt's program name; startup files are handled by the GUI itself.
+    app = QApplication([sys.argv[0]])
     _warn_unreadable_user_yaml()
     gui = GuiApplication(parent=app)
     gui.show_workflow_window()
+    gui.open_startup_selection(kind, file_path)
     interrupt = ConsoleInterrupt(gui.request_exit, parent=app)
     try:
         return app.exec()

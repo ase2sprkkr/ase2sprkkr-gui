@@ -22,7 +22,7 @@ def test_gui_command_is_discoverable():
     assert command.description
     command_parser = argparse.ArgumentParser()
     command.parser(command_parser)
-    assert command_parser.parse_args([]) == argparse.Namespace()
+    assert command_parser.parse_args([]) == argparse.Namespace(\n        file=None, open_last=False, structure=None, input=None, output=None\n    )
 
 
 def test_importing_gui_command_does_not_load_qt():
@@ -56,3 +56,46 @@ def test_gui_command_invokes_main_with_clean_arguments(monkeypatch, exit_code):
 
     assert exc.value.code == exit_code
     assert calls == [[]]
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected"),
+    [
+        (["Fe.cif"], ["Fe.cif"]),
+        (["result.out"], ["result.out"]),
+        (["--open-last"], ["--open-last"]),
+        (["--structure", "ambiguous.txt"], ["--structure", "ambiguous.txt"]),
+        (["--input", "ambiguous.txt"], ["--input", "ambiguous.txt"]),
+        (["--output", "ambiguous.txt"], ["--output", "ambiguous.txt"]),
+    ],
+)
+def test_gui_plugin_forwards_startup_options(monkeypatch, arguments, expected):
+    command = importlib.import_module("ase2sprkkr_gui.cli.gui")
+    command_parser = argparse.ArgumentParser()
+    command.parser(command_parser)
+    calls = []
+    fake_main_module = ModuleType("ase2sprkkr_gui.main")
+    fake_main_module.main = lambda *, argv: calls.append(argv) or 0
+    monkeypatch.setitem(sys.modules, "ase2sprkkr_gui.main", fake_main_module)
+
+    with pytest.raises(SystemExit) as exc:
+        command.run(command_parser.parse_args(arguments), {})
+    assert exc.value.code == 0
+    assert calls == [expected]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["Fe.cif", "--open-last"],
+        ["Fe.cif", "--output", "result.out"],
+        ["Fe.cif", "--structure", "other.cif"],
+    ],
+)
+def test_gui_plugin_rejects_multiple_startup_targets(arguments):
+    command = importlib.import_module("ase2sprkkr_gui.cli.gui")
+    command_parser = argparse.ArgumentParser()
+    command.parser(command_parser)
+    args = command_parser.parse_args(arguments)
+    with pytest.raises(ValueError, match="not more than one"):
+        command.startup_selection(args)
